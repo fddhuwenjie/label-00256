@@ -13,56 +13,6 @@ from core.exceptions import WeComAPIError, AuthenticationError
 from config import settings
 
 
-class SheetDataCache:
-    """表格数据缓存"""
-    
-    def __init__(self, ttl_seconds: int = 300):
-        self._cache: Dict[str, Dict[str, Any]] = {}
-        self._ttl = ttl_seconds
-    
-    def _make_key(self, spreadsheet_id: str, sheet_id: str, range_str: str) -> str:
-        return f"{spreadsheet_id}:{sheet_id}:{range_str}"
-    
-    def get(self, spreadsheet_id: str, sheet_id: str, range_str: str) -> Optional[Dict]:
-        """获取缓存数据"""
-        key = self._make_key(spreadsheet_id, sheet_id, range_str)
-        if key in self._cache:
-            entry = self._cache[key]
-            if datetime.now() < entry['expires_at']:
-                logger.debug(f"缓存命中: {key}")
-                return entry['data']
-            else:
-                del self._cache[key]
-                logger.debug(f"缓存过期: {key}")
-        return None
-    
-    def set(self, spreadsheet_id: str, sheet_id: str, range_str: str, data: Dict):
-        """设置缓存数据"""
-        key = self._make_key(spreadsheet_id, sheet_id, range_str)
-        self._cache[key] = {
-            'data': data,
-            'expires_at': datetime.now() + timedelta(seconds=self._ttl)
-        }
-        logger.debug(f"缓存设置: {key}, TTL={self._ttl}s")
-    
-    def invalidate(self, spreadsheet_id: str, sheet_id: str = None):
-        """使缓存失效"""
-        keys_to_delete = []
-        for key in self._cache:
-            if key.startswith(spreadsheet_id):
-                if sheet_id is None or f":{sheet_id}:" in key:
-                    keys_to_delete.append(key)
-        
-        for key in keys_to_delete:
-            del self._cache[key]
-            logger.debug(f"缓存失效: {key}")
-    
-    def clear(self):
-        """清空所有缓存"""
-        self._cache.clear()
-        logger.info("缓存已清空")
-
-
 class WeComService:
     """企业微信服务"""
     
@@ -76,9 +26,6 @@ class WeComService:
         self._access_token: Optional[str] = None
         self._token_expires_at: Optional[datetime] = None
         self._token_cache: Dict[str, Any] = {}
-        
-        # 表格数据缓存（TTL 5分钟）
-        self._sheet_cache = SheetDataCache(ttl_seconds=300)
         
         # 确保 Mock 数据目录存在
         self.MOCK_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -222,17 +169,9 @@ class WeComService:
         self, 
         spreadsheet_id: str, 
         sheet_id: str,
-        range_str: str,
-        use_cache: bool = True
+        range_str: str
     ) -> Dict[str, Any]:
-        """读取表格数据（带缓存）"""
-        # 检查缓存
-        if use_cache:
-            cached = self._sheet_cache.get(spreadsheet_id, sheet_id, range_str)
-            if cached:
-                logger.info(f"从缓存读取表格数据: {spreadsheet_id}/{sheet_id}/{range_str}")
-                return cached
-        
+        """读取表格数据（缓存由 SheetService 层管理）"""
         # Mock 模式
         if self.is_mock_mode():
             mock_data = self._load_mock_data()
@@ -245,10 +184,6 @@ class WeComService:
                 "data": sheet_data.get("values", []),
                 "range": range_str
             }
-            
-            # 设置缓存
-            if use_cache:
-                self._sheet_cache.set(spreadsheet_id, sheet_id, range_str, result)
             
             logger.info(f"Mock模式: 读取表格数据 {key}")
             return result
@@ -263,10 +198,6 @@ class WeComService:
                 "range": range_str
             }
         )
-        
-        # 设置缓存
-        if use_cache:
-            self._sheet_cache.set(spreadsheet_id, sheet_id, range_str, result)
         
         return result
     
@@ -294,9 +225,6 @@ class WeComService:
             
             self._save_mock_data(mock_data)
             
-            # 使相关缓存失效
-            self._sheet_cache.invalidate(spreadsheet_id, sheet_id)
-            
             logger.info(f"Mock模式: 写入表格数据 {key}")
             return {
                 "errcode": 0,
@@ -323,9 +251,6 @@ class WeComService:
                 }]
             }
         )
-        
-        # 使相关缓存失效
-        self._sheet_cache.invalidate(spreadsheet_id, sheet_id)
         
         return result
     
@@ -375,10 +300,6 @@ class WeComService:
             }
         
         raise NotImplementedError("同步模式仅支持 Mock")
-    
-    def clear_cache(self):
-        """清空表格数据缓存"""
-        self._sheet_cache.clear()
 
 
 # 单例
