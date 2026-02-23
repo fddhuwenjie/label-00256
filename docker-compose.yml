@@ -1,0 +1,14 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - WECOM_CORP_ID=${WECOM_CORP_ID:-}
+      - WECOM_CORP_SECRET=${WECOM_CORP_SECRET:-}
+      - WECOM_AGENT_ID=${WECOM_AGENT_ID:-}
+      - API_KEY=${API_KEY:-test-api-key-256}
+      - DEBUG=${DEBUG:-false}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

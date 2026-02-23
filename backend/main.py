@@ -1,0 +1,115 @@
+"""
+企业微信表格操作 API 服务
+主程序入口
+"""
+import os
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from config import settings
+from core.logger import logger
+from core.exceptions import WeComAPIError, AuthenticationError
+from api.sheets import router as sheets_router
+from api.health import router as health_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期"""
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
+    logger.info("=" * 50)
+    logger.info("企业微信表格操作 API 服务启动")
+    logger.info(f"Debug模式: {settings.debug}")
+    logger.info(f"企业微信配置: {'已配置' if settings.wecom_corp_id else '未配置(Mock模式)'}")
+    logger.info("=" * 50)
+    yield
+    logger.info("服务关闭")
+
+
+app = FastAPI(
+    title="企业微信表格操作 API",
+    description="面向日常测试工作的 RESTful API 服务，支持企业微信在线表格的读写操作",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# 全局异常处理
+@app.exception_handler(WeComAPIError)
+async def wecom_error_handler(request: Request, exc: WeComAPIError):
+    logger.error(f"企业微信API错误: {exc.errcode} - {exc.errmsg}")
+    return JSONResponse(
+        status_code=502,
+        content={
+            "success": False,
+            "message": f"企业微信API错误: {exc.errmsg}",
+            "error_code": f"WECOM_{exc.errcode}"
+        }
+    )
+
+
+@app.exception_handler(AuthenticationError)
+async def auth_error_handler(request: Request, exc: AuthenticationError):
+    logger.error(f"认证错误: {exc}")
+    return JSONResponse(
+        status_code=401,
+        content={
+            "success": False,
+            "message": str(exc),
+            "error_code": "AUTH_ERROR"
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_error_handler(request: Request, exc: Exception):
+    logger.exception(f"未处理异常: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "message": "服务器内部错误",
+            "error_code": "INTERNAL_ERROR"
+        }
+    )
+
+
+# 注册路由
+app.include_router(health_router)
+app.include_router(sheets_router)
+
+
+# 根路径
+@app.get("/", tags=["系统"])
+async def root():
+    """API根路径"""
+    return {
+        "name": "企业微信表格操作 API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_level="info" if not settings.debug else "debug"
+    )
