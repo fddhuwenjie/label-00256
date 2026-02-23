@@ -1,13 +1,69 @@
 """
 表格服务模块
+支持表格数据缓存（TTL 5分钟）
 """
-from typing import List, Any, Optional, Dict
+from typing import List, Any, Optional, Dict, Tuple
+from datetime import datetime, timedelta
 from core.logger import logger
 from core.exceptions import SheetNotFoundError, CellNotFoundError, InvalidParameterError
 from models.schemas import (
     CellData, QueryCondition, QueryOperator
 )
 from .wecom import wecom_service
+
+
+class SheetDataCache:
+    """表格数据缓存"""
+    
+    DEFAULT_TTL = 300  # 默认 5 分钟
+    
+    def __init__(self, ttl: int = DEFAULT_TTL):
+        self.ttl = ttl
+        self._cache: Dict[str, Tuple[Any, datetime]] = {}
+    
+    def _make_key(self, spreadsheet_id: str, sheet_id: str, range_str: str) -> str:
+        """生成缓存 key"""
+        return f"{spreadsheet_id}:{sheet_id}:{range_str}"
+    
+    def get(self, spreadsheet_id: str, sheet_id: str, range_str: str) -> Optional[Any]:
+        """获取缓存数据"""
+        key = self._make_key(spreadsheet_id, sheet_id, range_str)
+        if key not in self._cache:
+            return None
+        
+        data, cached_at = self._cache[key]
+        if datetime.now() - cached_at > timedelta(seconds=self.ttl):
+            # 缓存过期
+            del self._cache[key]
+            logger.debug(f"缓存过期: {key}")
+            return None
+        
+        logger.debug(f"缓存命中: {key}")
+        return data
+    
+    def set(self, spreadsheet_id: str, sheet_id: str, range_str: str, data: Any):
+        """设置缓存数据"""
+        key = self._make_key(spreadsheet_id, sheet_id, range_str)
+        self._cache[key] = (data, datetime.now())
+        logger.debug(f"缓存写入: {key}")
+    
+    def invalidate(self, spreadsheet_id: str, sheet_id: Optional[str] = None):
+        """使缓存失效（写入后调用）"""
+        prefix = f"{spreadsheet_id}:"
+        if sheet_id:
+            prefix = f"{spreadsheet_id}:{sheet_id}:"
+        
+        keys_to_delete = [k for k in self._cache.keys() if k.startswith(prefix)]
+        for key in keys_to_delete:
+            del self._cache[key]
+        
+        if keys_to_delete:
+            logger.info(f"缓存失效: {len(keys_to_delete)} 条记录")
+    
+    def clear(self):
+        """清空所有缓存"""
+        self._cache.clear()
+        logger.info("缓存已清空")
 
 
 class SheetService:
@@ -18,6 +74,7 @@ class SheetService:
     
     def __init__(self):
         self.use_mock = not wecom_service.is_configured
+        self._cache = SheetDataCache()  # 表格数据缓存
         if self.use_mock:
             logger.warning("企业微信未配置，使用Mock模式")
             self._init_mock_data()
@@ -91,6 +148,9 @@ class SheetService:
             values
         )
         
+        # 写入后使相关缓存失效
+        self._cache.invalidate(spreadsheet_id, sheet_id)
+        
         logger.info(f"写入表格成功: {spreadsheet_id}, 范围: {range_str}, 单元格数: {len(data)}")
         return len(data)
     
@@ -111,6 +171,9 @@ class SheetService:
             # 写入值
             sheet[cell.row - 1][cell.col - 1] = cell.value
         
+        # 写入后使相关缓存失效
+        self._cache.invalidate(spreadsheet_id)
+        
         logger.info(f"[Mock] 写入表格: {spreadsheet_id}, 单元格数: {len(data)}")
         return len(data)
     
@@ -119,20 +182,33 @@ class SheetService:
         spreadsheet_id: str,
         sheet_id: Optional[str]
     ) -> List[List[Any]]:
-        """读取全部数据"""
+        """读取全部数据（带缓存）"""
         if self.use_mock:
             return self._mock_read_all(spreadsheet_id)
+        
+        sheet = sheet_id or "Sheet1"
+        range_str = "A1:ZZ10000"
+        
+        # 检查缓存
+        cached = self._cache.get(spreadsheet_id, sheet, range_str)
+        if cached is not None:
+            return cached
         
         # 先获取表格信息确定范围
         info = await wecom_service.get_spreadsheet_info(spreadsheet_id)
         # 读取数据
         result = await wecom_service.read_sheet_data(
             spreadsheet_id,
-            sheet_id or "Sheet1",
-            "A1:ZZ10000"  # 读取大范围
+            sheet,
+            range_str
         )
         
-        return result.get("data", [])
+        data = result.get("data", [])
+        
+        # 写入缓存
+        self._cache.set(spreadsheet_id, sheet, range_str, data)
+        
+        return data
     
     def _mock_read_all(self, spreadsheet_id: str) -> List[List[Any]]:
         """Mock读取全部"""
@@ -148,21 +224,31 @@ class SheetService:
         row: int,
         col: int
     ) -> Any:
-        """读取单元格"""
+        """读取单元格（带缓存）"""
         if self.use_mock:
             return self._mock_read_cell(spreadsheet_id, row, col)
         
+        sheet = sheet_id or "Sheet1"
         range_str = self._make_range(row, col, row, col)
+        
+        # 检查缓存
+        cached = self._cache.get(spreadsheet_id, sheet, range_str)
+        if cached is not None:
+            return cached
+        
         result = await wecom_service.read_sheet_data(
             spreadsheet_id,
-            sheet_id or "Sheet1",
+            sheet,
             range_str
         )
         
         data = result.get("data", [[]])
-        if data and data[0]:
-            return data[0][0]
-        return None
+        value = data[0][0] if data and data[0] else None
+        
+        # 写入缓存
+        self._cache.set(spreadsheet_id, sheet, range_str, value)
+        
+        return value
     
     def _mock_read_cell(self, spreadsheet_id: str, row: int, col: int) -> Any:
         """Mock读取单元格"""
@@ -184,18 +270,30 @@ class SheetService:
         end_row: int,
         end_col: int
     ) -> List[List[Any]]:
-        """读取范围"""
+        """读取范围（带缓存）"""
         if self.use_mock:
             return self._mock_read_range(spreadsheet_id, start_row, start_col, end_row, end_col)
         
+        sheet = sheet_id or "Sheet1"
         range_str = self._make_range(start_row, start_col, end_row, end_col)
+        
+        # 检查缓存
+        cached = self._cache.get(spreadsheet_id, sheet, range_str)
+        if cached is not None:
+            return cached
+        
         result = await wecom_service.read_sheet_data(
             spreadsheet_id,
-            sheet_id or "Sheet1",
+            sheet,
             range_str
         )
         
-        return result.get("data", [])
+        data = result.get("data", [])
+        
+        # 写入缓存
+        self._cache.set(spreadsheet_id, sheet, range_str, data)
+        
+        return data
     
     def _mock_read_range(
         self,
