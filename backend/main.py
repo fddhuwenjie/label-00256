@@ -11,9 +11,10 @@ from contextlib import asynccontextmanager
 
 from config import settings
 from core.logger import logger
-from core.exceptions import WeComAPIError, AuthenticationError
+from core.exceptions import WeComAPIError, AuthenticationError, ValidationError
 from api.sheets import router as sheets_router
 from api.health import router as health_router
+from api.local_excel import router as local_excel_router
 
 
 @asynccontextmanager
@@ -76,6 +77,19 @@ async def auth_error_handler(request: Request, exc: AuthenticationError):
     )
 
 
+@app.exception_handler(ValidationError)
+async def validation_error_handler(request: Request, exc: ValidationError):
+    logger.error(f"验证错误: {exc}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "message": str(exc),
+            "error_code": "VALIDATION_ERROR"
+        }
+    )
+
+
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception):
     logger.exception(f"未处理异常: {exc}")
@@ -92,6 +106,7 @@ async def general_error_handler(request: Request, exc: Exception):
 # 注册路由
 app.include_router(health_router)
 app.include_router(sheets_router)
+app.include_router(local_excel_router, prefix="/api/v1/sheets")
 
 
 # 根路径

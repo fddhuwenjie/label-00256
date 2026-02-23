@@ -10,9 +10,9 @@
 docker compose up --build -d
 ```
 
-服务启动后访问：http://localhost:8000
+服务启动后访问：http://localhost:8010
 
-API 文档：http://localhost:8000/docs
+API 文档：http://localhost:8010/docs
 
 ### 方式二：本地运行
 
@@ -28,13 +28,45 @@ python main.py
 
 | 服务 | 描述 | 端口 |
 |------|------|------|
-| backend | RESTful API 服务 | 8000 |
+| backend | RESTful API 服务 | 8010 |
+
+## Mock 模式说明
+
+本项目支持 **Mock 模式**，当未配置企业微信凭证时自动启用：
+
+- **启用条件**：环境变量 `WECOM_CORP_ID` 或 `WECOM_CORP_SECRET` 为空
+- **Mock 行为**：
+  - 写入操作：返回成功响应，数据存储到本地 `backend/data/mock_sheets.json`
+  - 读取操作：从本地 Mock 文件读取数据
+  - access_token：返回模拟 token `mock_access_token_xxx`
+- **使用场景**：开发调试、单元测试、无企业微信账号时的功能验证
+- **切换方式**：配置真实的企业微信凭证即可切换到真实模式
+
+```bash
+# Mock 模式（默认）
+docker compose up --build -d
+
+# 真实模式
+WECOM_CORP_ID=xxx WECOM_CORP_SECRET=xxx docker compose up --build -d
+```
 
 ## 测试账号
 
-| 用途 | Key | Value |
-|------|-----|-------|
-| API认证 | X-API-Key | test-api-key-256 |
+| 用途 | Key | 权限 |
+|------|-----|------|
+| 管理员 | test-api-key-256 | read, write, local, admin |
+| 只读 | readonly-key-256 | read |
+| 读写 | readwrite-key-256 | read, write |
+| 本地文件 | local-file-key-256 | read, write, local |
+
+### 权限说明
+
+| 权限 | 描述 |
+|------|------|
+| read | 读取表格数据 |
+| write | 写入表格数据 |
+| local | 本地 xlsx 文件操作 |
+| admin | 管理员权限（包含所有权限） |
 
 ## 题目内容
 
@@ -49,10 +81,13 @@ python main.py
 - ✅ RESTful API 服务（FastAPI）
 - ✅ 企业微信 API 认证与授权
 - ✅ 在线表格读写操作
+- ✅ 本地 xlsx 文件读写操作
 - ✅ 模块化架构设计
 - ✅ 完善的错误处理和日志记录
 - ✅ Swagger/OpenAPI 文档
-- ✅ 身份验证和权限控制
+- ✅ 细粒度权限控制（read/write/admin/local）
+- ✅ 表格数据缓存（TTL 5分钟）
+- ✅ Mock 模式支持
 - ✅ 单元测试和集成测试
 
 ## 项目结构
@@ -93,7 +128,7 @@ python main.py
 
 ## API 接口
 
-### 表格操作
+### 表格操作（企业微信在线表格）
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
@@ -102,6 +137,17 @@ python main.py
 | GET | /api/v1/sheets/cell | 读取指定单元格 |
 | GET | /api/v1/sheets/range | 读取指定范围 |
 | POST | /api/v1/sheets/query | 条件查询 |
+
+### 本地 Excel 文件操作
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| POST | /api/v1/sheets/local/upload | 上传 xlsx 文件 |
+| GET | /api/v1/sheets/local/read/{file_id} | 读取已上传的文件 |
+| POST | /api/v1/sheets/local/export | 导出数据为 xlsx |
+| GET | /api/v1/sheets/local/download/{file_id} | 下载导出的文件 |
+| DELETE | /api/v1/sheets/local/{file_id} | 删除文件 |
+| GET | /api/v1/sheets/local/files | 列出所有文件 |
 
 ### 系统接口
 

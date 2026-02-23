@@ -3,7 +3,7 @@ API路由 - 表格操作
 """
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
-from core.auth import verify_api_key
+from core.auth import verify_api_key, require_permission, Permission, APIKeyInfo
 from core.logger import logger
 from core.exceptions import raise_bad_request
 from models.schemas import (
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1/sheets", tags=["表格操作"])
 @router.post("/write", response_model=WriteResponse, summary="写入数据到表格")
 async def write_data(
     request: WriteRequest,
-    api_key: str = Depends(verify_api_key)
+    key_info: APIKeyInfo = Depends(require_permission(Permission.WRITE))
 ):
     """
     写入数据到企业微信在线表格
@@ -50,7 +50,7 @@ async def write_data(
 async def read_data(
     spreadsheet_id: str = Query(..., description="表格ID"),
     sheet_id: Optional[str] = Query(None, description="工作表ID"),
-    api_key: str = Depends(verify_api_key)
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     读取企业微信在线表格的全部数据
@@ -80,7 +80,7 @@ async def read_cell(
     row: int = Query(..., ge=1, description="行号（从1开始）"),
     col: int = Query(..., ge=1, description="列号（从1开始）"),
     sheet_id: Optional[str] = Query(None, description="工作表ID"),
-    api_key: str = Depends(verify_api_key)
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     读取指定单元格的值
@@ -111,7 +111,7 @@ async def read_range(
     end_row: int = Query(..., ge=1, description="结束行"),
     end_col: int = Query(..., ge=1, description="结束列"),
     sheet_id: Optional[str] = Query(None, description="工作表ID"),
-    api_key: str = Depends(verify_api_key)
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     读取指定范围的数据
@@ -146,7 +146,7 @@ async def read_range(
 @router.post("/query", response_model=ReadResponse, summary="条件查询")
 async def query_data(
     request: QueryRequest,
-    api_key: str = Depends(verify_api_key)
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     根据条件查询表格数据

@@ -27,6 +27,11 @@ class AuthenticationError(Exception):
     pass
 
 
+class ValidationError(Exception):
+    """验证错误"""
+    pass
+
+
 class InvalidParameterError(Exception):
     """参数错误"""
     pass
