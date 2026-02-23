@@ -2,7 +2,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8010:8000"
     environment:
       - WECOM_CORP_ID=${WECOM_CORP_ID:-}
       - WECOM_CORP_SECRET=${WECOM_CORP_SECRET:-}
