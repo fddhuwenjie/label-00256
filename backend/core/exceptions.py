@@ -37,16 +37,19 @@ class InvalidParameterError(Exception):
     pass
 
 
-def raise_http_error(status_code: int, detail: str):
+def raise_http_error(status_code: int, code: str, message: str):
     """抛出HTTP错误"""
-    raise HTTPException(status_code=status_code, detail=detail)
+    raise HTTPException(
+        status_code=status_code,
+        detail={"code": code, "message": message}
+    )
 
 
 def raise_unauthorized():
     """抛出未授权错误"""
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or missing API key",
+        detail={"code": "AUTH_FAILED", "message": "Invalid or missing API key"},
         headers={"WWW-Authenticate": "ApiKey"}
     )
 
@@ -55,13 +58,13 @@ def raise_not_found(resource: str):
     """抛出资源不存在错误"""
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"{resource} not found"
+        detail={"code": "NOT_FOUND", "message": f"{resource} not found"}
     )
 
 
-def raise_bad_request(detail: str):
+def raise_bad_request(message: str):
     """抛出请求错误"""
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail=detail
+        detail={"code": "VALIDATION_ERROR", "message": message}
     )

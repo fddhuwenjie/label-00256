@@ -449,7 +449,11 @@ GET /api/v1/sheets/range?spreadsheet_id=shtcnxxxxxx&start_row=1&start_col=1&end_
   "status": "healthy",
   "version": "1.0.0",
   "mode": "mock",
-  "timestamp": "2024-01-01T12:00:00Z"
+  "timestamp": "2024-01-01T12:00:00Z",
+  "services": {
+    "api": "healthy",
+    "wecom": "mock_mode"
+  }
 }
 ```
 

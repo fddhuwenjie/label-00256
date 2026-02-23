@@ -102,11 +102,13 @@ WECOM_CORP_ID=xxx WECOM_CORP_SECRET=xxx docker compose up --build -d
 │   ├── api/                  # API路由
 │   │   ├── __init__.py
 │   │   ├── sheets.py        # 表格操作接口
+│   │   ├── local_excel.py   # 本地Excel操作接口
 │   │   └── health.py        # 健康检查
 │   ├── services/            # 业务服务
 │   │   ├── __init__.py
 │   │   ├── wecom.py         # 企业微信服务
-│   │   └── sheet_service.py # 表格服务
+│   │   ├── sheet_service.py # 表格服务
+│   │   └── local_excel.py   # 本地Excel服务
 │   ├── models/              # 数据模型
 │   │   ├── __init__.py
 │   │   └── schemas.py       # Pydantic模型
@@ -118,8 +120,10 @@ WECOM_CORP_ID=xxx WECOM_CORP_SECRET=xxx docker compose up --build -d
 │   └── tests/               # 测试用例
 │       ├── __init__.py
 │       ├── test_sheets.py
-│       └── test_wecom.py
+│       ├── test_wecom.py
+│       └── test_local_excel.py
 ├── docs/                     # 文档
+│   ├── api-spec.md          # API接口详细规范
 │   └── architecture.md      # 架构设计文档
 ├── docker-compose.yml
 ├── .gitignore

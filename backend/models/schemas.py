@@ -125,4 +125,6 @@ class HealthResponse(BaseModel):
     """健康检查响应"""
     status: str = "healthy"
     version: str = "1.0.0"
+    mode: str = "mock"
+    timestamp: str = ""
     services: Dict[str, str] = Field(default_factory=dict)

@@ -1,6 +1,7 @@
 """
 API路由 - 健康检查
 """
+from datetime import datetime
 from fastapi import APIRouter
 from models.schemas import HealthResponse
 from services.wecom import wecom_service
@@ -15,13 +16,17 @@ async def health_check():
     
     返回服务状态和版本信息
     """
+    is_mock = wecom_service.is_mock_mode()
+    
     services = {
         "api": "healthy",
-        "wecom": "configured" if wecom_service.is_configured else "mock_mode"
+        "wecom": "mock_mode" if is_mock else "configured"
     }
     
     return HealthResponse(
         status="healthy",
         version="1.0.0",
+        mode="mock" if is_mock else "production",
+        timestamp=datetime.now().isoformat() + "Z",
         services=services
     )

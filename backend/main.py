@@ -57,9 +57,10 @@ async def wecom_error_handler(request: Request, exc: WeComAPIError):
     return JSONResponse(
         status_code=502,
         content={
-            "success": False,
-            "message": f"企业微信API错误: {exc.errmsg}",
-            "error_code": f"WECOM_{exc.errcode}"
+            "detail": {
+                "code": f"WECOM_API_ERROR",
+                "message": f"企业微信API错误: {exc.errmsg}"
+            }
         }
     )
 
@@ -70,9 +71,10 @@ async def auth_error_handler(request: Request, exc: AuthenticationError):
     return JSONResponse(
         status_code=401,
         content={
-            "success": False,
-            "message": str(exc),
-            "error_code": "AUTH_ERROR"
+            "detail": {
+                "code": "AUTH_FAILED",
+                "message": str(exc)
+            }
         }
     )
 
@@ -83,9 +85,10 @@ async def validation_error_handler(request: Request, exc: ValidationError):
     return JSONResponse(
         status_code=422,
         content={
-            "success": False,
-            "message": str(exc),
-            "error_code": "VALIDATION_ERROR"
+            "detail": {
+                "code": "VALIDATION_ERROR",
+                "message": str(exc)
+            }
         }
     )
 
@@ -96,9 +99,10 @@ async def general_error_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={
-            "success": False,
-            "message": "服务器内部错误",
-            "error_code": "INTERNAL_ERROR"
+            "detail": {
+                "code": "INTERNAL_ERROR",
+                "message": "服务器内部错误"
+            }
         }
     )
 
