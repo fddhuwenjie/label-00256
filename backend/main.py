@@ -4,6 +4,7 @@
 """
 import os
 import uvicorn
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,12 +17,15 @@ from api.sheets import router as sheets_router
 from api.health import router as health_router
 from api.local_excel import router as local_excel_router
 
+# 基于当前文件位置计算项目根目录，确保跨平台兼容
+BASE_DIR = Path(__file__).resolve().parent
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期"""
-    os.makedirs("logs", exist_ok=True)
-    os.makedirs("data", exist_ok=True)
+    (BASE_DIR / "logs").mkdir(parents=True, exist_ok=True)
+    (BASE_DIR / "data").mkdir(parents=True, exist_ok=True)
     logger.info("=" * 50)
     logger.info("企业微信表格操作 API 服务启动")
     logger.info(f"Debug模式: {settings.debug}")

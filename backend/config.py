@@ -1,9 +1,13 @@
 """
 配置管理模块
 """
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
 import os
+
+# 基于当前文件位置定位 .env，确保无论从哪个目录启动都能找到
+_CONFIG_DIR = Path(__file__).resolve().parent
 
 
 class Settings(BaseSettings):
@@ -23,7 +27,7 @@ class Settings(BaseSettings):
     port: int = 8000
     
     class Config:
-        env_file = ".env"
+        env_file = str(_CONFIG_DIR / ".env")
         env_file_encoding = "utf-8"
 
 
