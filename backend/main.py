@@ -21,17 +21,8 @@ from api.local_excel import router as local_excel_router
 # 基于当前文件位置计算项目根目录，确保跨平台兼容
 BASE_DIR = Path(__file__).resolve().parent
 
-# 获取 swagger-ui-bundle 包中的静态资源路径
-try:
-    import swagger_ui_bundle
-    SWAGGER_UI_DIR = Path(swagger_ui_bundle.__file__).parent / "vendor"
-    # 找到实际的 swagger-ui 版本目录
-    for d in SWAGGER_UI_DIR.iterdir():
-        if d.is_dir() and d.name.startswith("swagger-ui"):
-            SWAGGER_UI_DIR = d
-            break
-except ImportError:
-    SWAGGER_UI_DIR = None
+# Swagger UI 本地静态资源目录
+SWAGGER_UI_DIR = BASE_DIR / "static" / "swagger-ui"
 
 
 @asynccontextmanager
@@ -58,7 +49,7 @@ app = FastAPI(
 )
 
 # 挂载本地 Swagger UI 静态资源，完全不依赖外部 CDN
-if SWAGGER_UI_DIR:
+if SWAGGER_UI_DIR.exists():
     app.mount("/swagger-ui", StaticFiles(directory=str(SWAGGER_UI_DIR)), name="swagger-ui")
 
 
