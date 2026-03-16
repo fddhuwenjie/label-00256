@@ -6,7 +6,8 @@ import os
 import uvicorn
 from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
@@ -19,6 +20,18 @@ from api.local_excel import router as local_excel_router
 
 # 基于当前文件位置计算项目根目录，确保跨平台兼容
 BASE_DIR = Path(__file__).resolve().parent
+
+# 获取 swagger-ui-bundle 包中的静态资源路径
+try:
+    import swagger_ui_bundle
+    SWAGGER_UI_DIR = Path(swagger_ui_bundle.__file__).parent / "vendor"
+    # 找到实际的 swagger-ui 版本目录
+    for d in SWAGGER_UI_DIR.iterdir():
+        if d.is_dir() and d.name.startswith("swagger-ui"):
+            SWAGGER_UI_DIR = d
+            break
+except ImportError:
+    SWAGGER_UI_DIR = None
 
 
 @asynccontextmanager
@@ -40,9 +53,45 @@ app = FastAPI(
     description="面向日常测试工作的 RESTful API 服务，支持企业微信在线表格的读写操作",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url=None,
+    redoc_url=None
 )
+
+# 挂载本地 Swagger UI 静态资源，完全不依赖外部 CDN
+if SWAGGER_UI_DIR:
+    app.mount("/swagger-ui", StaticFiles(directory=str(SWAGGER_UI_DIR)), name="swagger-ui")
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui():
+    """自定义 Swagger UI，使用本地静态资源，确保离线/任何网络环境都能访问"""
+    return HTMLResponse("""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>企业微信表格操作 API - Swagger UI</title>
+    <link rel="stylesheet" href="/swagger-ui/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="/swagger-ui/swagger-ui-bundle.js"></script>
+    <script>
+    SwaggerUIBundle({
+        url: '/openapi.json',
+        dom_id: '#swagger-ui',
+        layout: 'BaseLayout',
+        deepLinking: true,
+        showExtensions: true,
+        showCommonExtensions: true,
+        presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+    })
+    </script>
+</body>
+</html>
+""")
 
 # CORS中间件
 app.add_middleware(
