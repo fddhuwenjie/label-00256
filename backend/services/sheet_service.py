@@ -162,6 +162,8 @@ class SheetService:
         sheet = self._mock_data[spreadsheet_id]
         
         for cell in data:
+            if cell.row < 1 or cell.col < 1:
+                raise InvalidParameterError(f"行号和列号必须 >= 1，当前: row={cell.row}, col={cell.col}")
             # 扩展行
             while len(sheet) < cell.row:
                 sheet.append([])

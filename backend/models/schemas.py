@@ -39,8 +39,8 @@ class CellRange(BaseModel):
 
 class CellData(BaseModel):
     """单元格数据"""
-    row: int
-    col: int
+    row: int = Field(..., ge=1, description="行号，从1开始")
+    col: int = Field(..., ge=1, description="列号，从1开始")
     value: Any
 
 
