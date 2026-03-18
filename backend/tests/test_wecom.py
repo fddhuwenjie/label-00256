@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.wecom import WeComService
+from config import settings
 
 
 class TestWeComService:
@@ -53,17 +54,17 @@ class TestWeComService:
         }
         mock_response.raise_for_status = MagicMock()
         mock_client.return_value.__enter__.return_value.get.return_value = mock_response
-        
-        # 设置环境变量模拟真实模式
-        with patch.dict(os.environ, {
-            'WECOM_CORP_ID': 'test_corp_id',
-            'WECOM_CORP_SECRET': 'test_corp_secret'
-        }):
+
+        # patch settings 对象而非环境变量，因为 settings 是模块加载时就已实例化的单例
+        with patch('services.wecom.settings') as mock_settings:
+            mock_settings.wecom_corp_id = 'test_corp_id'
+            mock_settings.wecom_corp_secret = 'test_corp_secret'
+            mock_settings.wecom_agent_id = ''
             service = WeComService()
-            # 清除缓存
             service._token_cache = {}
             token = service.get_access_token()
             assert token == 'real_token_123'
+
     
     def test_is_mock_mode(self, wecom_service):
         """测试 Mock 模式检测"""
@@ -82,10 +83,8 @@ class TestWeComService:
         mock_response.raise_for_status = MagicMock()
         mock_client.return_value.__enter__.return_value.get.return_value = mock_response
         
-        with patch.dict(os.environ, {
-            'WECOM_CORP_ID': 'test_corp_id',
-            'WECOM_CORP_SECRET': 'test_corp_secret'
-        }):
+        with patch.object(settings, 'wecom_corp_id', 'test_corp_id'), \
+             patch.object(settings, 'wecom_corp_secret', 'test_corp_secret'):
             service = WeComService()
             service._token_cache = {}
             # 应该处理错误而不是崩溃

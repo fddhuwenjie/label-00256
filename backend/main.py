@@ -13,7 +13,10 @@ from contextlib import asynccontextmanager
 
 from config import settings
 from core.logger import logger
-from core.exceptions import WeComAPIError, AuthenticationError, ValidationError
+from core.exceptions import (
+    WeComAPIError, AuthenticationError, ValidationError,
+    InvalidParameterError, SheetNotFoundError, CellNotFoundError
+)
 from api.sheets import router as sheets_router
 from api.health import router as health_router
 from api.local_excel import router as local_excel_router
@@ -137,15 +140,58 @@ async def validation_error_handler(request: Request, exc: ValidationError):
     )
 
 
+@app.exception_handler(InvalidParameterError)
+async def invalid_parameter_error_handler(request: Request, exc: InvalidParameterError):
+    logger.error(f"参数错误: {exc}")
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": {
+                "code": "VALIDATION_ERROR",
+                "message": str(exc)
+            }
+        }
+    )
+
+
+@app.exception_handler(SheetNotFoundError)
+async def sheet_not_found_error_handler(request: Request, exc: SheetNotFoundError):
+    logger.error(f"表格不存在: {exc}")
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": {
+                "code": "NOT_FOUND",
+                "message": str(exc)
+            }
+        }
+    )
+
+
+@app.exception_handler(CellNotFoundError)
+async def cell_not_found_error_handler(request: Request, exc: CellNotFoundError):
+    logger.error(f"单元格不存在: {exc}")
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": {
+                "code": "NOT_FOUND",
+                "message": str(exc)
+            }
+        }
+    )
+
+
 @app.exception_handler(Exception)
 async def general_error_handler(request: Request, exc: Exception):
     logger.exception(f"未处理异常: {exc}")
+    message = str(exc) if settings.debug else "服务器内部错误"
     return JSONResponse(
         status_code=500,
         content={
             "detail": {
                 "code": "INTERNAL_ERROR",
-                "message": "服务器内部错误"
+                "message": message
             }
         }
     )

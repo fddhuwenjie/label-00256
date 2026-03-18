@@ -1,0 +1,18 @@
+{
+  "sheets": {
+    "mock_sheet_123_Sheet1": {
+      "values": [
+        [
+          "Name",
+          "Age"
+        ],
+        [
+          "Alice",
+          25
+        ]
+      ],
+      "range": "A1:B2",
+      "updated_at": "2026-03-18T12:51:14.327276"
+    }
+  }
+}
