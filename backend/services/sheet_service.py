@@ -6,10 +6,10 @@ from typing import List, Any, Optional, Dict, Tuple
 from datetime import datetime, timedelta
 from core.logger import logger
 from core.exceptions import SheetNotFoundError, CellNotFoundError, InvalidParameterError
-from models.schemas import (
+from validators.sheets import (
     CellData, QueryCondition, QueryOperator
 )
-from .wecom import wecom_service
+from .wecom import WeComService
 
 
 class SheetDataCache:
@@ -18,15 +18,41 @@ class SheetDataCache:
     DEFAULT_TTL = 300  # 默认 5 分钟
     
     def __init__(self, ttl: int = DEFAULT_TTL):
+        """
+        初始化表格数据缓存
+        
+        Args:
+            ttl: 缓存生存时间（秒），默认为 300 秒
+        """
         self.ttl = ttl
         self._cache: Dict[str, Tuple[Any, datetime]] = {}
     
     def _make_key(self, spreadsheet_id: str, sheet_id: str, range_str: str) -> str:
-        """生成缓存 key"""
+        """
+        生成缓存键
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID
+            range_str: 范围字符串
+            
+        Returns:
+            str: 组合后的缓存键
+        """
         return f"{spreadsheet_id}:{sheet_id}:{range_str}"
     
     def get(self, spreadsheet_id: str, sheet_id: str, range_str: str) -> Optional[Any]:
-        """获取缓存数据"""
+        """
+        获取缓存数据
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID
+            range_str: 范围字符串
+            
+        Returns:
+            Optional[Any]: 缓存的数据，如果缓存不存在或已过期则返回 None
+        """
         key = self._make_key(spreadsheet_id, sheet_id, range_str)
         if key not in self._cache:
             return None
@@ -42,13 +68,27 @@ class SheetDataCache:
         return data
     
     def set(self, spreadsheet_id: str, sheet_id: str, range_str: str, data: Any):
-        """设置缓存数据"""
+        """
+        设置缓存数据
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID
+            range_str: 范围字符串
+            data: 要缓存的数据
+        """
         key = self._make_key(spreadsheet_id, sheet_id, range_str)
         self._cache[key] = (data, datetime.now())
         logger.debug(f"缓存写入: {key}")
     
     def invalidate(self, spreadsheet_id: str, sheet_id: Optional[str] = None):
-        """使缓存失效（写入后调用）"""
+        """
+        使缓存失效（写入后调用）
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID（可选），如果不指定则失效该表格的所有缓存
+        """
         prefix = f"{spreadsheet_id}:"
         if sheet_id:
             prefix = f"{spreadsheet_id}:{sheet_id}:"
@@ -61,7 +101,9 @@ class SheetDataCache:
             logger.info(f"缓存失效: {len(keys_to_delete)} 条记录")
     
     def clear(self):
-        """清空所有缓存"""
+        """
+        清空所有缓存
+        """
         self._cache.clear()
         logger.info("缓存已清空")
 
@@ -72,7 +114,14 @@ class SheetService:
     # Mock数据存储（用于开发测试）
     _mock_data: Dict[str, List[List[Any]]] = {}
     
-    def __init__(self):
+    def __init__(self, wecom_service: WeComService):
+        """
+        初始化表格服务
+        
+        Args:
+            wecom_service: 企业微信服务实例
+        """
+        self.wecom_service = wecom_service
         self.use_mock = not wecom_service.is_configured
         self._cache = SheetDataCache()  # 表格数据缓存
         if self.use_mock:
@@ -80,7 +129,9 @@ class SheetService:
             self._init_mock_data()
     
     def _init_mock_data(self):
-        """初始化Mock数据"""
+        """
+        初始化 Mock 数据
+        """
         self._mock_data["test_sheet"] = [
             ["姓名", "年龄", "部门", "入职日期"],
             ["张三", 28, "技术部", "2023-01-15"],
@@ -90,7 +141,15 @@ class SheetService:
         ]
     
     def _col_to_letter(self, col: int) -> str:
-        """列号转字母（1->A, 2->B, ...）"""
+        """
+        列号转字母（1->A, 2->B, ...）
+        
+        Args:
+            col: 列号
+            
+        Returns:
+            str: 对应的字母列名
+        """
         result = ""
         while col > 0:
             col -= 1
@@ -99,7 +158,18 @@ class SheetService:
         return result
     
     def _make_range(self, start_row: int, start_col: int, end_row: int, end_col: int) -> str:
-        """生成范围字符串（如 A1:C5）"""
+        """
+        生成范围字符串（如 A1:C5）
+        
+        Args:
+            start_row: 起始行
+            start_col: 起始列
+            end_row: 结束行
+            end_col: 结束列
+            
+        Returns:
+            str: 范围字符串
+        """
         start = f"{self._col_to_letter(start_col)}{start_row}"
         end = f"{self._col_to_letter(end_col)}{end_row}"
         return f"{start}:{end}"
@@ -110,7 +180,17 @@ class SheetService:
         sheet_id: Optional[str],
         data: List[CellData]
     ) -> int:
-        """写入数据到表格"""
+        """
+        写入数据到表格
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID（可选）
+            data: 要写入的单元格数据列表
+            
+        Returns:
+            int: 成功写入的单元格数量
+        """
         if not data:
             return 0
         
@@ -141,7 +221,7 @@ class SheetService:
         
         range_str = self._make_range(min_row, min_col, max_row, max_col)
         
-        await wecom_service.write_sheet_data(
+        await self.wecom_service.write_sheet_data(
             spreadsheet_id,
             sheet_id or "Sheet1",
             range_str,
@@ -155,7 +235,19 @@ class SheetService:
         return len(data)
     
     def _mock_write(self, spreadsheet_id: str, data: List[CellData]) -> int:
-        """Mock写入"""
+        """
+        Mock 写入
+        
+        Args:
+            spreadsheet_id: 表格ID
+            data: 要写入的单元格数据列表
+            
+        Returns:
+            int: 成功写入的单元格数量
+            
+        Raises:
+            InvalidParameterError: 当行号或列号无效时抛出
+        """
         if spreadsheet_id not in self._mock_data:
             self._mock_data[spreadsheet_id] = []
         
@@ -184,7 +276,16 @@ class SheetService:
         spreadsheet_id: str,
         sheet_id: Optional[str]
     ) -> List[List[Any]]:
-        """读取全部数据（带缓存）"""
+        """
+        读取全部数据（带缓存）
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID（可选）
+            
+        Returns:
+            List[List[Any]]: 表格数据，二维数组格式
+        """
         if self.use_mock:
             return self._mock_read_all(spreadsheet_id)
         
@@ -197,9 +298,9 @@ class SheetService:
             return cached
         
         # 先获取表格信息确定范围
-        info = await wecom_service.get_spreadsheet_info(spreadsheet_id)
+        info = await self.wecom_service.get_spreadsheet_info(spreadsheet_id)
         # 读取数据
-        result = await wecom_service.read_sheet_data(
+        result = await self.wecom_service.read_sheet_data(
             spreadsheet_id,
             sheet,
             range_str
@@ -213,7 +314,15 @@ class SheetService:
         return data
     
     def _mock_read_all(self, spreadsheet_id: str) -> List[List[Any]]:
-        """Mock读取全部"""
+        """
+        Mock 读取全部
+        
+        Args:
+            spreadsheet_id: 表格ID
+            
+        Returns:
+            List[List[Any]]: 表格数据，二维数组格式
+        """
         if spreadsheet_id not in self._mock_data:
             # 返回默认测试数据
             return self._mock_data.get("test_sheet", [])
@@ -226,7 +335,21 @@ class SheetService:
         row: int,
         col: int
     ) -> Any:
-        """读取单元格（带缓存）"""
+        """
+        读取单元格（带缓存）
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID（可选）
+            row: 行号
+            col: 列号
+            
+        Returns:
+            Any: 单元格的值
+            
+        Raises:
+            CellNotFoundError: 当在 Mock 模式下单元格不存在时抛出
+        """
         if self.use_mock:
             return self._mock_read_cell(spreadsheet_id, row, col)
         
@@ -238,7 +361,7 @@ class SheetService:
         if cached is not None:
             return cached
         
-        result = await wecom_service.read_sheet_data(
+        result = await self.wecom_service.read_sheet_data(
             spreadsheet_id,
             sheet,
             range_str
@@ -253,7 +376,20 @@ class SheetService:
         return value
     
     def _mock_read_cell(self, spreadsheet_id: str, row: int, col: int) -> Any:
-        """Mock读取单元格"""
+        """
+        Mock 读取单元格
+        
+        Args:
+            spreadsheet_id: 表格ID
+            row: 行号
+            col: 列号
+            
+        Returns:
+            Any: 单元格的值
+            
+        Raises:
+            CellNotFoundError: 当单元格不存在时抛出
+        """
         data = self._mock_data.get(spreadsheet_id) or self._mock_data.get("test_sheet", [])
         
         if row > len(data) or row < 1:
@@ -272,7 +408,20 @@ class SheetService:
         end_row: int,
         end_col: int
     ) -> List[List[Any]]:
-        """读取范围（带缓存）"""
+        """
+        读取范围（带缓存）
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID（可选）
+            start_row: 起始行
+            start_col: 起始列
+            end_row: 结束行
+            end_col: 结束列
+            
+        Returns:
+            List[List[Any]]: 指定范围的数据，二维数组格式
+        """
         if self.use_mock:
             return self._mock_read_range(spreadsheet_id, start_row, start_col, end_row, end_col)
         
@@ -284,7 +433,7 @@ class SheetService:
         if cached is not None:
             return cached
         
-        result = await wecom_service.read_sheet_data(
+        result = await self.wecom_service.read_sheet_data(
             spreadsheet_id,
             sheet,
             range_str
@@ -305,7 +454,19 @@ class SheetService:
         end_row: int,
         end_col: int
     ) -> List[List[Any]]:
-        """Mock读取范围"""
+        """
+        Mock 读取范围
+        
+        Args:
+            spreadsheet_id: 表格ID
+            start_row: 起始行
+            start_col: 起始列
+            end_row: 结束行
+            end_col: 结束列
+            
+        Returns:
+            List[List[Any]]: 指定范围的数据，二维数组格式
+        """
         data = self._mock_data.get(spreadsheet_id) or self._mock_data.get("test_sheet", [])
         
         result = []
@@ -327,7 +488,18 @@ class SheetService:
         conditions: List[QueryCondition],
         logic: str = "and"
     ) -> List[List[Any]]:
-        """条件查询"""
+        """
+        条件查询
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID（可选）
+            conditions: 查询条件列表
+            logic: 条件逻辑，"and" 或 "or"
+            
+        Returns:
+            List[List[Any]]: 匹配的行，包含表头
+        """
         # 先读取全部数据
         all_data = await self.read_all(spreadsheet_id, sheet_id)
         
@@ -352,7 +524,17 @@ class SheetService:
         conditions: List[QueryCondition],
         logic: str
     ) -> bool:
-        """检查行是否匹配条件"""
+        """
+        检查行是否匹配条件
+        
+        Args:
+            row: 数据行
+            conditions: 查询条件列表
+            logic: 条件逻辑，"and" 或 "or"
+            
+        Returns:
+            bool: 是否匹配所有条件
+        """
         results = []
         
         for cond in conditions:
@@ -370,7 +552,17 @@ class SheetService:
         return all(results)
     
     def _compare(self, cell_value: Any, operator: QueryOperator, compare_value: Any) -> bool:
-        """比较值"""
+        """
+        比较值
+        
+        Args:
+            cell_value: 单元格值
+            operator: 比较操作符
+            compare_value: 比较值
+            
+        Returns:
+            bool: 比较结果
+        """
         try:
             if operator == QueryOperator.EQ:
                 return str(cell_value) == str(compare_value)
@@ -394,7 +586,3 @@ class SheetService:
             return False
         
         return False
-
-
-# 单例
-sheet_service = SheetService()

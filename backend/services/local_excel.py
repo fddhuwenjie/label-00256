@@ -28,6 +28,9 @@ class LocalExcelService:
     EXPORT_DIR = Path(__file__).parent.parent / "data" / "exports"
     
     def __init__(self):
+        """
+        初始化本地 Excel 服务
+        """
         # 确保目录存在
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         self.EXPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -36,7 +39,12 @@ class LocalExcelService:
         self._file_cache: Dict[str, Dict[str, Any]] = {}
     
     def _check_openpyxl(self):
-        """检查 openpyxl 是否可用"""
+        """
+        检查 openpyxl 是否可用
+        
+        Raises:
+            ValidationError: 当 openpyxl 未安装时抛出
+        """
         if not OPENPYXL_AVAILABLE:
             raise ValidationError("openpyxl 未安装，无法处理 xlsx 文件")
     
@@ -45,11 +53,14 @@ class LocalExcelService:
         上传并解析 xlsx 文件
         
         Args:
-            file_content: 文件内容
+            file_content: 文件内容（字节流）
             filename: 文件名
             
         Returns:
-            文件信息
+            Dict[str, Any]: 文件信息，包含 file_id、filename、sheets、row_count、column_count
+            
+        Raises:
+            ValidationError: 当文件格式不支持或解析失败时抛出
         """
         self._check_openpyxl()
         
@@ -111,11 +122,14 @@ class LocalExcelService:
         
         Args:
             file_id: 文件 ID
-            sheet_name: 工作表名称
-            range_str: 读取范围，如 "A1:C10"
+            sheet_name: 工作表名称（可选），默认为激活的工作表
+            range_str: 读取范围，如 "A1:C10"（可选），默认为读取全部
             
         Returns:
-            表格数据
+            Dict[str, Any]: 表格数据，包含 file_id、sheet_name、range、values、row_count、column_count
+            
+        Raises:
+            ValidationError: 当文件不存在或工作表不存在时抛出
         """
         self._check_openpyxl()
         
@@ -160,7 +174,16 @@ class LocalExcelService:
             wb.close()
     
     def _read_range(self, ws, range_str: str) -> List[List[Any]]:
-        """读取指定范围的数据"""
+        """
+        读取指定范围的数据
+        
+        Args:
+            ws: 工作表对象
+            range_str: 范围字符串，如 "A1:C10"
+            
+        Returns:
+            List[List[Any]]: 指定范围的数据
+        """
         values = []
         for row in ws[range_str]:
             row_values = []
@@ -170,7 +193,15 @@ class LocalExcelService:
         return values
     
     def _read_all(self, ws) -> List[List[Any]]:
-        """读取所有数据"""
+        """
+        读取所有数据
+        
+        Args:
+            ws: 工作表对象
+            
+        Returns:
+            List[List[Any]]: 工作表的所有数据
+        """
         values = []
         for row in ws.iter_rows():
             row_values = []
@@ -190,11 +221,11 @@ class LocalExcelService:
         
         Args:
             data: 二维数组数据
-            filename: 文件名
-            sheet_name: 工作表名称
+            filename: 文件名（可选），默认自动生成
+            sheet_name: 工作表名称（可选），默认为 "Sheet1"
             
         Returns:
-            导出文件信息
+            Dict[str, Any]: 导出文件信息，包含 file_id、filename、path、row_count、column_count
         """
         self._check_openpyxl()
         
@@ -231,14 +262,30 @@ class LocalExcelService:
         }
     
     def get_export_file_path(self, file_id: str) -> Optional[Path]:
-        """获取导出文件路径"""
+        """
+        获取导出文件路径
+        
+        Args:
+            file_id: 文件 ID
+            
+        Returns:
+            Optional[Path]: 文件路径对象，如果文件不存在则返回 None
+        """
         file_path = self.EXPORT_DIR / f"{file_id}.xlsx"
         if file_path.exists():
             return file_path
         return None
     
     def delete_file(self, file_id: str) -> bool:
-        """删除文件"""
+        """
+        删除文件
+        
+        Args:
+            file_id: 文件 ID
+            
+        Returns:
+            bool: 是否成功删除文件
+        """
         # 检查上传目录
         upload_path = self.UPLOAD_DIR / f"{file_id}.xlsx"
         if upload_path.exists():
@@ -257,7 +304,12 @@ class LocalExcelService:
         return False
     
     def list_files(self) -> Dict[str, List[Dict[str, Any]]]:
-        """列出所有文件"""
+        """
+        列出所有文件
+        
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: 包含上传文件和导出文件列表的字典
+        """
         uploads = []
         for f in self.UPLOAD_DIR.glob("*.xlsx"):
             uploads.append({
@@ -280,7 +332,3 @@ class LocalExcelService:
             "uploads": uploads,
             "exports": exports
         }
-
-
-# 单例
-local_excel_service = LocalExcelService()

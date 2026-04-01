@@ -20,6 +20,11 @@ class WeComService:
     MOCK_DATA_FILE = Path(__file__).parent.parent / "data" / "mock_sheets.json"
     
     def __init__(self):
+        """
+        初始化企业微信服务
+        
+        从配置加载企业微信凭证，并确保 Mock 数据目录存在
+        """
         self.corp_id = settings.wecom_corp_id
         self.corp_secret = settings.wecom_corp_secret
         self.agent_id = settings.wecom_agent_id
@@ -31,16 +36,34 @@ class WeComService:
         self.MOCK_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     
     def is_mock_mode(self) -> bool:
-        """检查是否为 Mock 模式"""
+        """
+        检查是否为 Mock 模式
+        
+        Returns:
+            bool: 如果未配置企业微信凭证则返回 True，否则返回 False
+        """
         return not bool(self.corp_id and self.corp_secret)
     
     @property
     def is_configured(self) -> bool:
-        """检查是否已配置"""
+        """
+        检查是否已配置
+        
+        Returns:
+            bool: 如果已配置企业微信凭证则返回 True，否则返回 False
+        """
         return bool(self.corp_id and self.corp_secret)
     
     def get_access_token(self) -> str:
-        """获取access_token（同步版本，带缓存）"""
+        """
+        获取 access_token（同步版本，带缓存）
+        
+        Returns:
+            str: 有效的 access_token
+            
+        Raises:
+            WeComAPIError: 当获取 access_token 失败时抛出
+        """
         # Mock 模式
         if self.is_mock_mode():
             mock_token = f"mock_access_token_{datetime.now().strftime('%Y%m%d')}"
@@ -74,7 +97,15 @@ class WeComService:
         return self._access_token
     
     async def get_access_token_async(self) -> str:
-        """获取access_token（异步版本，带缓存）"""
+        """
+        获取 access_token（异步版本，带缓存）
+        
+        Returns:
+            str: 有效的 access_token
+            
+        Raises:
+            WeComAPIError: 当获取 access_token 失败时抛出
+        """
         # Mock 模式
         if self.is_mock_mode():
             mock_token = f"mock_access_token_{datetime.now().strftime('%Y%m%d')}"
@@ -110,24 +141,57 @@ class WeComService:
     # ==================== Mock 数据操作 ====================
     
     def _load_mock_data(self) -> Dict[str, Any]:
-        """加载 Mock 数据"""
+        """
+        加载 Mock 数据
+        
+        Returns:
+            Dict[str, Any]: 从文件加载的 Mock 数据
+        """
         if self.MOCK_DATA_FILE.exists():
             with open(self.MOCK_DATA_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         return {"sheets": {}}
     
     def _save_mock_data(self, data: Dict[str, Any]):
-        """保存 Mock 数据"""
+        """
+        保存 Mock 数据
+        
+        Args:
+            data: 要保存的数据
+        """
         with open(self.MOCK_DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     
     def _get_mock_sheet_key(self, spreadsheet_id: str, sheet_id: str) -> str:
+        """
+        生成 Mock 表格的键
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID
+            
+        Returns:
+            str: 组合后的键字符串
+        """
         return f"{spreadsheet_id}_{sheet_id}"
     
     # ==================== 表格操作 ====================
     
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """发送API请求"""
+        """
+        发送企业微信 API 请求
+        
+        Args:
+            method: HTTP 请求方法
+            endpoint: API 端点路径
+            **kwargs: 其他请求参数
+            
+        Returns:
+            Dict[str, Any]: API 响应数据
+            
+        Raises:
+            WeComAPIError: 当 API 返回错误时抛出
+        """
         token = await self.get_access_token_async()
         url = f"{self.BASE_URL}{endpoint}"
         
@@ -144,7 +208,15 @@ class WeComService:
         return data
     
     async def get_spreadsheet_info(self, spreadsheet_id: str) -> Dict[str, Any]:
-        """获取表格信息"""
+        """
+        获取表格信息
+        
+        Args:
+            spreadsheet_id: 表格ID
+            
+        Returns:
+            Dict[str, Any]: 表格信息，包含文档基本信息和工作表列表
+        """
         if self.is_mock_mode():
             return {
                 "errcode": 0,
@@ -171,7 +243,17 @@ class WeComService:
         sheet_id: str,
         range_str: str
     ) -> Dict[str, Any]:
-        """读取表格数据（缓存由 SheetService 层管理）"""
+        """
+        读取表格数据（缓存由 SheetService 层管理）
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID
+            range_str: 读取范围，如 "A1:C10"
+            
+        Returns:
+            Dict[str, Any]: 包含表格数据的字典
+        """
         # Mock 模式
         if self.is_mock_mode():
             mock_data = self._load_mock_data()
@@ -208,7 +290,18 @@ class WeComService:
         range_str: str,
         values: list
     ) -> Dict[str, Any]:
-        """写入表格数据"""
+        """
+        写入表格数据
+        
+        Args:
+            spreadsheet_id: 表格ID
+            sheet_id: 工作表ID
+            range_str: 写入范围
+            values: 要写入的数据，二维数组格式
+            
+        Returns:
+            Dict[str, Any]: 写入操作的响应结果
+        """
         # Mock 模式
         if self.is_mock_mode():
             mock_data = self._load_mock_data()
@@ -261,7 +354,21 @@ class WeComService:
         range_str: str,
         values: list
     ) -> Dict[str, Any]:
-        """同步写入表格数据（用于测试）"""
+        """
+        同步写入表格数据（用于测试）
+        
+        Args:
+            spreadsheet_token: 表格令牌
+            sheet_id: 工作表ID
+            range_str: 写入范围
+            values: 要写入的数据
+            
+        Returns:
+            Dict[str, Any]: 写入结果
+            
+        Raises:
+            NotImplementedError: 当在真实模式下调用时抛出
+        """
         if self.is_mock_mode():
             mock_data = self._load_mock_data()
             key = self._get_mock_sheet_key(spreadsheet_token, sheet_id)
@@ -287,7 +394,20 @@ class WeComService:
         sheet_id: str,
         range_str: str
     ) -> Dict[str, Any]:
-        """同步读取表格数据（用于测试）"""
+        """
+        同步读取表格数据（用于测试）
+        
+        Args:
+            spreadsheet_token: 表格令牌
+            sheet_id: 工作表ID
+            range_str: 读取范围
+            
+        Returns:
+            Dict[str, Any]: 读取结果
+            
+        Raises:
+            NotImplementedError: 当在真实模式下调用时抛出
+        """
         if self.is_mock_mode():
             mock_data = self._load_mock_data()
             key = self._get_mock_sheet_key(spreadsheet_token, sheet_id)
@@ -300,7 +420,3 @@ class WeComService:
             }
         
         raise NotImplementedError("同步模式仅支持 Mock")
-
-
-# 单例
-wecom_service = WeComService()
