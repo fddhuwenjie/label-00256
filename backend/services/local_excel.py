@@ -1,9 +1,7 @@
 """
 本地 Excel 文件服务
-支持 xlsx 文件的读写操作
+支持 xlsx 文件的上传、读取、导出等操作
 """
-import os
-import io
 import uuid
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -13,6 +11,7 @@ try:
     import openpyxl
     from openpyxl import Workbook, load_workbook
     from openpyxl.utils import get_column_letter
+
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
@@ -22,21 +21,29 @@ from core.exceptions import ValidationError
 
 
 class LocalExcelService:
-    """本地 Excel 文件服务"""
-    
+    """本地 Excel 文件服务
+
+    提供 xlsx 文件的上传、读取、导出、下载、删除等本地操作
+    """
+
     UPLOAD_DIR = Path(__file__).parent.parent / "data" / "uploads"
     EXPORT_DIR = Path(__file__).parent.parent / "data" / "exports"
-    
+
     def __init__(self):
-        # 确保目录存在
+        """初始化本地 Excel 服务
+
+        创建必要的目录结构，初始化文件缓存
+        """
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         self.EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-        
-        # 文件缓存 {file_id: {"path": path, "workbook": wb, "uploaded_at": datetime}}
         self._file_cache: Dict[str, Dict[str, Any]] = {}
-    
+
     def _check_openpyxl(self):
-        """检查 openpyxl 是否可用"""
+        """检查 openpyxl 库是否可用
+
+        Raises:
+            ValidationError: openpyxl 未安装时抛出
+        """
         if not OPENPYXL_AVAILABLE:
             raise ValidationError("openpyxl 未安装，无法处理 xlsx 文件")
     
@@ -160,7 +167,15 @@ class LocalExcelService:
             wb.close()
     
     def _read_range(self, ws, range_str: str) -> List[List[Any]]:
-        """读取指定范围的数据"""
+        """读取工作表中指定范围的数据
+
+        Args:
+            ws: openpyxl 工作表对象
+            range_str: 范围字符串，如 "A1:C10"
+
+        Returns:
+            List[List[Any]]: 二维表格数据
+        """
         values = []
         for row in ws[range_str]:
             row_values = []
@@ -168,9 +183,16 @@ class LocalExcelService:
                 row_values.append(cell.value)
             values.append(row_values)
         return values
-    
+
     def _read_all(self, ws) -> List[List[Any]]:
-        """读取所有数据"""
+        """读取工作表中所有数据
+
+        Args:
+            ws: openpyxl 工作表对象
+
+        Returns:
+            List[List[Any]]: 二维表格数据
+        """
         values = []
         for row in ws.iter_rows():
             row_values = []
@@ -231,56 +253,69 @@ class LocalExcelService:
         }
     
     def get_export_file_path(self, file_id: str) -> Optional[Path]:
-        """获取导出文件路径"""
+        """获取导出文件的完整路径
+
+        Args:
+            file_id: 文件 ID
+
+        Returns:
+            Optional[Path]: 文件存在则返回完整路径，否则返回 None
+        """
         file_path = self.EXPORT_DIR / f"{file_id}.xlsx"
         if file_path.exists():
             return file_path
         return None
-    
+
     def delete_file(self, file_id: str) -> bool:
-        """删除文件"""
-        # 检查上传目录
+        """删除指定文件
+
+        Args:
+            file_id: 文件 ID
+
+        Returns:
+            bool: 删除成功返回 True，文件不存在返回 False
+        """
         upload_path = self.UPLOAD_DIR / f"{file_id}.xlsx"
         if upload_path.exists():
             upload_path.unlink()
             self._file_cache.pop(file_id, None)
             logger.info(f"删除上传文件: {file_id}")
             return True
-        
-        # 检查导出目录
+
         export_path = self.EXPORT_DIR / f"{file_id}.xlsx"
         if export_path.exists():
             export_path.unlink()
             logger.info(f"删除导出文件: {file_id}")
             return True
-        
+
         return False
-    
+
     def list_files(self) -> Dict[str, List[Dict[str, Any]]]:
-        """列出所有文件"""
+        """列出所有已上传和导出的文件
+
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: 包含 uploads 和 exports 两个列表的字典
+        """
         uploads = []
         for f in self.UPLOAD_DIR.glob("*.xlsx"):
-            uploads.append({
-                "file_id": f.stem,
-                "filename": f.name,
-                "size": f.stat().st_size,
-                "created_at": datetime.fromtimestamp(f.stat().st_ctime).isoformat()
-            })
-        
+            uploads.append(
+                {
+                    "file_id": f.stem,
+                    "filename": f.name,
+                    "size": f.stat().st_size,
+                    "created_at": datetime.fromtimestamp(f.stat().st_ctime).isoformat(),
+                }
+            )
+
         exports = []
         for f in self.EXPORT_DIR.glob("*.xlsx"):
-            exports.append({
-                "file_id": f.stem,
-                "filename": f.name,
-                "size": f.stat().st_size,
-                "created_at": datetime.fromtimestamp(f.stat().st_ctime).isoformat()
-            })
-        
-        return {
-            "uploads": uploads,
-            "exports": exports
-        }
+            exports.append(
+                {
+                    "file_id": f.stem,
+                    "filename": f.name,
+                    "size": f.stat().st_size,
+                    "created_at": datetime.fromtimestamp(f.stat().st_ctime).isoformat(),
+                }
+            )
 
-
-# 单例
-local_excel_service = LocalExcelService()
+        return {"uploads": uploads, "exports": exports}
