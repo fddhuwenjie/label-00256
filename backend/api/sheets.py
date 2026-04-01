@@ -6,12 +6,13 @@ from typing import Optional
 from core.auth import verify_api_key, require_permission, Permission, APIKeyInfo
 from core.logger import logger
 from core.exceptions import raise_bad_request
-from models.schemas import (
+from validators.sheets import (
     WriteRequest, WriteResponse,
     ReadResponse, CellResponse,
     QueryRequest, CellRange
 )
-from services.sheet_service import sheet_service
+from services.sheet_service import SheetService
+from services.dependencies import get_sheet_service
 
 router = APIRouter(prefix="/api/v1/sheets", tags=["表格操作"])
 
@@ -19,14 +20,19 @@ router = APIRouter(prefix="/api/v1/sheets", tags=["表格操作"])
 @router.post("/write", response_model=WriteResponse, summary="写入数据到表格")
 async def write_data(
     request: WriteRequest,
+    sheet_service: SheetService = Depends(get_sheet_service),
     key_info: APIKeyInfo = Depends(require_permission(Permission.WRITE))
 ):
     """
     写入数据到企业微信在线表格
     
-    - **spreadsheet_id**: 表格ID
-    - **sheet_id**: 工作表ID（可选）
-    - **data**: 要写入的单元格数据列表
+    Args:
+        request: 写入请求数据
+        sheet_service: 表格服务实例（依赖注入）
+        key_info: API Key 信息（权限验证）
+        
+    Returns:
+        WriteResponse: 写入响应
     """
     logger.info(f"写入请求: spreadsheet_id={request.spreadsheet_id}, cells={len(request.data)}")
     
@@ -50,13 +56,20 @@ async def write_data(
 async def read_data(
     spreadsheet_id: str = Query(..., description="表格ID"),
     sheet_id: Optional[str] = Query(None, description="工作表ID"),
+    sheet_service: SheetService = Depends(get_sheet_service),
     key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     读取企业微信在线表格的全部数据
     
-    - **spreadsheet_id**: 表格ID
-    - **sheet_id**: 工作表ID（可选，默认第一个工作表）
+    Args:
+        spreadsheet_id: 表格ID
+        sheet_id: 工作表ID（可选，默认第一个工作表）
+        sheet_service: 表格服务实例（依赖注入）
+        key_info: API Key 信息（权限验证）
+        
+    Returns:
+        ReadResponse: 读取响应
     """
     logger.info(f"读取请求: spreadsheet_id={spreadsheet_id}")
     
@@ -80,15 +93,22 @@ async def read_cell(
     row: int = Query(..., ge=1, description="行号（从1开始）"),
     col: int = Query(..., ge=1, description="列号（从1开始）"),
     sheet_id: Optional[str] = Query(None, description="工作表ID"),
+    sheet_service: SheetService = Depends(get_sheet_service),
     key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     读取指定单元格的值
     
-    - **spreadsheet_id**: 表格ID
-    - **row**: 行号（从1开始）
-    - **col**: 列号（从1开始）
-    - **sheet_id**: 工作表ID（可选）
+    Args:
+        spreadsheet_id: 表格ID
+        row: 行号（从1开始）
+        col: 列号（从1开始）
+        sheet_id: 工作表ID（可选）
+        sheet_service: 表格服务实例（依赖注入）
+        key_info: API Key 信息（权限验证）
+        
+    Returns:
+        CellResponse: 单元格响应
     """
     logger.info(f"读取单元格: spreadsheet_id={spreadsheet_id}, row={row}, col={col}")
     
@@ -111,15 +131,24 @@ async def read_range(
     end_row: int = Query(..., ge=1, description="结束行"),
     end_col: int = Query(..., ge=1, description="结束列"),
     sheet_id: Optional[str] = Query(None, description="工作表ID"),
+    sheet_service: SheetService = Depends(get_sheet_service),
     key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     读取指定范围的数据
     
-    - **spreadsheet_id**: 表格ID
-    - **start_row/start_col**: 起始位置
-    - **end_row/end_col**: 结束位置
-    - **sheet_id**: 工作表ID（可选）
+    Args:
+        spreadsheet_id: 表格ID
+        start_row: 起始行
+        start_col: 起始列
+        end_row: 结束行
+        end_col: 结束列
+        sheet_id: 工作表ID（可选）
+        sheet_service: 表格服务实例（依赖注入）
+        key_info: API Key 信息（权限验证）
+        
+    Returns:
+        ReadResponse: 读取响应
     """
     logger.info(f"读取范围: spreadsheet_id={spreadsheet_id}, range=[{start_row},{start_col}]-[{end_row},{end_col}]")
     
@@ -146,23 +175,19 @@ async def read_range(
 @router.post("/query", response_model=ReadResponse, summary="条件查询")
 async def query_data(
     request: QueryRequest,
+    sheet_service: SheetService = Depends(get_sheet_service),
     key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
 ):
     """
     根据条件查询表格数据
     
-    - **spreadsheet_id**: 表格ID
-    - **sheet_id**: 工作表ID（可选）
-    - **conditions**: 查询条件列表
-    - **logic**: 条件逻辑（and/or）
-    
-    支持的操作符：
-    - eq: 等于
-    - ne: 不等于
-    - gt/ge/lt/le: 大于/大于等于/小于/小于等于
-    - contains: 包含
-    - starts_with: 开头匹配
-    - ends_with: 结尾匹配
+    Args:
+        request: 查询请求数据
+        sheet_service: 表格服务实例（依赖注入）
+        key_info: API Key 信息（权限验证）
+        
+    Returns:
+        ReadResponse: 查询响应
     """
     logger.info(f"条件查询: spreadsheet_id={request.spreadsheet_id}, conditions={len(request.conditions)}")
     

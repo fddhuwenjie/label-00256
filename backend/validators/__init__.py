@@ -1,11 +1,8 @@
 """
-数据模型 - Pydantic Schemas (保持向后兼容)
-新代码请使用 validators 模块
+数据验证模块
+提供请求和响应的 Pydantic 模型定义
 """
-from validators import (
-    ResponseBase,
-    ErrorResponse,
-    HealthResponse,
+from .sheets import (
     CellPosition,
     CellRange,
     CellData,
@@ -20,12 +17,22 @@ from validators import (
     ReadResponse,
     CellResponse,
 )
+from .local_excel import (
+    ExportRequest,
+    ReadRequest as LocalReadRequest,
+)
+from .common import (
+    ResponseBase,
+    ErrorResponse,
+    HealthResponse,
+)
 
-# 为了保持向后兼容，保留以下别名
 __all__ = [
+    # 通用模型
     "ResponseBase",
     "ErrorResponse",
     "HealthResponse",
+    # 表格操作模型
     "CellPosition",
     "CellRange",
     "CellData",
@@ -39,4 +46,7 @@ __all__ = [
     "QueryRequest",
     "ReadResponse",
     "CellResponse",
+    # 本地 Excel 模型
+    "ExportRequest",
+    "LocalReadRequest",
 ]
