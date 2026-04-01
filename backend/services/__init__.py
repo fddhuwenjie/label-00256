@@ -1,7 +1,9 @@
 """
-服务模块
+服务层模块
+包含所有业务逻辑服务
 """
-from .wecom import wecom_service
-from .sheet_service import sheet_service
+from .wecom import WeComService
+from .sheet_service import SheetService, SheetDataCache
+from .local_excel import LocalExcelService
 
-__all__ = ["wecom_service", "sheet_service"]
+__all__ = ["WeComService", "SheetService", "SheetDataCache", "LocalExcelService"]

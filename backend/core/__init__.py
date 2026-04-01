@@ -1,30 +1,7 @@
 """
 核心模块
+包含认证、异常处理、日志、依赖注入等核心功能
 """
-from .logger import logger
-from .auth import verify_api_key
-from .exceptions import (
-    WeComAPIError,
-    SheetNotFoundError,
-    CellNotFoundError,
-    AuthenticationError,
-    InvalidParameterError,
-    raise_http_error,
-    raise_unauthorized,
-    raise_not_found,
-    raise_bad_request
-)
+from . import auth, exceptions, logger, dependencies
 
-__all__ = [
-    "logger",
-    "verify_api_key",
-    "WeComAPIError",
-    "SheetNotFoundError", 
-    "CellNotFoundError",
-    "AuthenticationError",
-    "InvalidParameterError",
-    "raise_http_error",
-    "raise_unauthorized",
-    "raise_not_found",
-    "raise_bad_request"
-]
+__all__ = ["auth", "exceptions", "logger", "dependencies"]
