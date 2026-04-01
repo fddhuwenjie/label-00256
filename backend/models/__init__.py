@@ -1,40 +1,7 @@
 """
-数据模型
-"""
-from .schemas import (
-    ResponseBase,
-    ErrorResponse,
-    CellPosition,
-    CellRange,
-    CellData,
-    WriteRequest,
-    WriteResponse,
-    ReadRequest,
-    ReadCellRequest,
-    ReadRangeRequest,
-    QueryOperator,
-    QueryCondition,
-    QueryRequest,
-    ReadResponse,
-    CellResponse,
-    HealthResponse
-)
+数据模型模块
 
-__all__ = [
-    "ResponseBase",
-    "ErrorResponse",
-    "CellPosition",
-    "CellRange",
-    "CellData",
-    "WriteRequest",
-    "WriteResponse",
-    "ReadRequest",
-    "ReadCellRequest",
-    "ReadRangeRequest",
-    "QueryOperator",
-    "QueryCondition",
-    "QueryRequest",
-    "ReadResponse",
-    "CellResponse",
-    "HealthResponse"
-]
+注意：原 schemas.py 已迁移至 validators/ 目录
+请使用 validators 模块获取 Pydantic Schema
+"""
+__all__ = []
