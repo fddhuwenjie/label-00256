@@ -1,55 +1,44 @@
 """
-本地 Excel 文件操作 API
+本地 Excel 文件操作 API 路由
+只负责请求分发和响应组装，业务逻辑委托给 service 层
 """
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from fastapi.responses import FileResponse
-from typing import List, Any, Optional
-from pydantic import BaseModel
 
 from core.auth import require_permission, Permission, APIKeyInfo
 from core.logger import logger
-from services.local_excel import local_excel_service
+from core.dependencies import get_local_excel_service
+from validators.local_excel import ExportRequest
+from services.local_excel import LocalExcelService
 
 
 router = APIRouter(prefix="/local", tags=["本地Excel操作"])
 
 
-class ExportRequest(BaseModel):
-    """导出请求"""
-    data: List[List[Any]]
-    filename: Optional[str] = None
-    sheet_name: str = "Sheet1"
-
-
-class ReadRequest(BaseModel):
-    """读取请求"""
-    file_id: str
-    sheet_name: Optional[str] = None
-    range: Optional[str] = None
-
-
 @router.post("/upload", summary="上传 xlsx 文件")
 async def upload_excel(
     file: UploadFile = File(...),
-    key_info: APIKeyInfo = Depends(require_permission(Permission.LOCAL_FILE))
+    key_info: APIKeyInfo = Depends(require_permission(Permission.LOCAL_FILE)),
+    service: LocalExcelService = Depends(get_local_excel_service)
 ):
     """
     上传本地 xlsx 文件并解析
-    
-    - **file**: xlsx 文件
-    
-    返回文件信息，包括工作表列表、行列数等
+
+    Args:
+        file: xlsx 文件
+        key_info: API 密钥认证信息
+        service: 本地 Excel 服务实例
+
+    Returns:
+        包含成功状态、文件信息和消息的响应字典
+
+    Raises:
+        HTTPException: 文件格式不支持或解析失败
     """
-    if not file.filename.lower().endswith('.xlsx'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "VALIDATION_ERROR", "message": "仅支持 .xlsx 格式文件"}
-        )
-    
     content = await file.read()
-    
+
     try:
-        result = local_excel_service.upload_file(content, file.filename)
+        result = service.upload_file(content, file.filename)
         return {
             "success": True,
             "data": result,
@@ -66,19 +55,29 @@ async def upload_excel(
 @router.get("/read/{file_id}", summary="读取已上传的 xlsx 文件")
 async def read_excel(
     file_id: str,
-    sheet_name: Optional[str] = None,
-    range: Optional[str] = None,
-    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
+    sheet_name: str = None,
+    range: str = None,
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ)),
+    service: LocalExcelService = Depends(get_local_excel_service)
 ):
     """
     读取已上传的 xlsx 文件内容
-    
-    - **file_id**: 文件 ID（上传时返回）
-    - **sheet_name**: 工作表名称（可选）
-    - **range**: 读取范围，如 "A1:C10"（可选）
+
+    Args:
+        file_id: 文件 ID（上传时返回）
+        sheet_name: 工作表名称（可选）
+        range: 读取范围，如 "A1:C10"（可选）
+        key_info: API 密钥认证信息
+        service: 本地 Excel 服务实例
+
+    Returns:
+        包含成功状态、表格数据和消息的响应字典
+
+    Raises:
+        HTTPException: 文件不存在或读取失败
     """
     try:
-        result = local_excel_service.read_file(file_id, sheet_name, range)
+        result = service.read_file(file_id, sheet_name, range)
         return {
             "success": True,
             "data": result,
@@ -95,19 +94,25 @@ async def read_excel(
 @router.post("/export", summary="导出数据为 xlsx 文件")
 async def export_excel(
     request: ExportRequest,
-    key_info: APIKeyInfo = Depends(require_permission(Permission.LOCAL_FILE))
+    key_info: APIKeyInfo = Depends(require_permission(Permission.LOCAL_FILE)),
+    service: LocalExcelService = Depends(get_local_excel_service)
 ):
     """
     将数据导出为 xlsx 文件
-    
-    - **data**: 二维数组数据
-    - **filename**: 文件名（可选）
-    - **sheet_name**: 工作表名称（默认 Sheet1）
-    
-    返回文件 ID，可用于下载
+
+    Args:
+        request: 导出请求参数，包含 data、filename 和 sheet_name
+        key_info: API 密钥认证信息
+        service: 本地 Excel 服务实例
+
+    Returns:
+        包含成功状态、文件信息和消息的响应字典
+
+    Raises:
+        HTTPException: 导出失败
     """
     try:
-        result = local_excel_service.export_to_file(
+        result = service.export_to_file(
             request.data,
             request.filename,
             request.sheet_name
@@ -128,21 +133,31 @@ async def export_excel(
 @router.get("/download/{file_id}", summary="下载导出的 xlsx 文件")
 async def download_excel(
     file_id: str,
-    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ)),
+    service: LocalExcelService = Depends(get_local_excel_service)
 ):
     """
     下载导出的 xlsx 文件
-    
-    - **file_id**: 文件 ID（导出时返回）
+
+    Args:
+        file_id: 文件 ID（导出时返回）
+        key_info: API 密钥认证信息
+        service: 本地 Excel 服务实例
+
+    Returns:
+        FileResponse 文件响应
+
+    Raises:
+        HTTPException: 文件不存在
     """
-    file_path = local_excel_service.get_export_file_path(file_id)
-    
+    file_path = service.get_export_file_path(file_id)
+
     if not file_path:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "文件不存在"}
         )
-    
+
     return FileResponse(
         path=file_path,
         filename=f"{file_id}.xlsx",
@@ -153,21 +168,31 @@ async def download_excel(
 @router.delete("/{file_id}", summary="删除文件")
 async def delete_excel(
     file_id: str,
-    key_info: APIKeyInfo = Depends(require_permission(Permission.LOCAL_FILE))
+    key_info: APIKeyInfo = Depends(require_permission(Permission.LOCAL_FILE)),
+    service: LocalExcelService = Depends(get_local_excel_service)
 ):
     """
     删除已上传或导出的文件
-    
-    - **file_id**: 文件 ID
+
+    Args:
+        file_id: 文件 ID
+        key_info: API 密钥认证信息
+        service: 本地 Excel 服务实例
+
+    Returns:
+        包含成功状态和消息的响应字典
+
+    Raises:
+        HTTPException: 文件不存在
     """
-    success = local_excel_service.delete_file(file_id)
-    
+    success = service.delete_file(file_id)
+
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "NOT_FOUND", "message": "文件不存在"}
         )
-    
+
     return {
         "success": True,
         "message": "文件已删除"
@@ -176,12 +201,20 @@ async def delete_excel(
 
 @router.get("/files", summary="列出所有文件")
 async def list_files(
-    key_info: APIKeyInfo = Depends(require_permission(Permission.READ))
+    key_info: APIKeyInfo = Depends(require_permission(Permission.READ)),
+    service: LocalExcelService = Depends(get_local_excel_service)
 ):
     """
     列出所有已上传和导出的文件
+
+    Args:
+        key_info: API 密钥认证信息
+        service: 本地 Excel 服务实例
+
+    Returns:
+        包含成功状态和文件列表的响应字典
     """
-    result = local_excel_service.list_files()
+    result = service.list_files()
     return {
         "success": True,
         "data": result
